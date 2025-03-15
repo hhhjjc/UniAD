@@ -24,7 +24,7 @@ dataset:
   input_size: [224,224] # [h,w]
   pixel_mean: [0.485, 0.456, 0.406]
   pixel_std: [0.229, 0.224, 0.225]
-  batch_size: 32
+  batch_size: 128
   workers: 8 # number of workers of dataloader for each process
 
 criterion:
@@ -54,7 +54,7 @@ trainer:
 saver:
   auto_resume: False
   always_save: False
-  load_path: checkpoints/ckpt.pth.tar
+  load_path: checkpoints/ckpt_best.pth.tar
   save_dir: checkpoints/
   log_dir: log/
 
@@ -96,7 +96,7 @@ net:
         outstrides: [16]
     - name: reconstruction
       prev: neck
-      type: models.reconstructions.cdtrans_recon.CDTransRecon  # 使用我们新的模型
+      type: models.reconstructions.UniAD
       kwargs: 
         pos_embed_type: learned
         hidden_dim: 256
@@ -112,8 +112,7 @@ net:
           prob: 1.0
         neighbor_mask:
           neighbor_size: [7,7]
-          mask: [False, False, False] # whether use mask in [enc, dec1, dec2]
-        num_prototypes: 15  # 支持的类别数量
+          mask: [True, True, True] # whether use mask in [enc, dec1, dec2]
         save_recon:
           save_dir: result_recon
         initializer:

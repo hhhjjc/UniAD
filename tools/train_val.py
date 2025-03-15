@@ -80,7 +80,9 @@ def main():
         output_device=local_rank,
         find_unused_parameters=True,
     )
-
+    
+    #model = torch.compile(model) # 在DDP包装后添加
+    
     layers = []
     for module in config.net:
         layers.append(module["name"])

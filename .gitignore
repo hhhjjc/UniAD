@@ -13,3 +13,4 @@ experiments/*/log*/*
 experiments/*/arun_log*/*
 experiments/*/*result*/*
 experiments/*/*vis*/*
+/data
