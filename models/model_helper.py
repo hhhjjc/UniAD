@@ -5,6 +5,26 @@ import torch
 import torch.nn as nn
 from utils.misc_helper import to_device
 
+def build_dcuad_model(cfg):
+    """构建DCUAD模型"""
+    # 使用原来的代码来构建所有组件（backbone，neck）
+    model = ModelHelper(cfg.net)
+    
+    # 替换reconstruction部分为DCUAD
+    reconstruction_config = cfg.net[2]
+    if 'domain_discovery' in reconstruction_config.kwargs:
+        num_domains = reconstruction_config.kwargs.domain_discovery.num_prototypes
+        # 替换为DCUAD
+        model.reconstruction = DCUAD(
+            model.neck.get_outplanes(),
+            model.neck.get_outstrides(),
+            **reconstruction_config.kwargs,
+            num_domains=num_domains
+        )
+    
+    # 初始化并返回
+    model.cuda()
+    return model
 
 class ModelHelper(nn.Module):
     """Build model from cfg"""

@@ -12,7 +12,7 @@ from models.initializer import initialize_from_cfg
 from torch import Tensor, nn
 
 
-class UniAD(nn.Module):
+class wave_UniAD(nn.Module):
     def __init__(
         self,
         inplanes,

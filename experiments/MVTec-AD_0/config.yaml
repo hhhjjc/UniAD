@@ -20,6 +20,8 @@ dataset:
 
   test:
     meta_file: ../../data/MVTec-AD/test_filtered.json
+    # meta_file: ../../data/MVTec-AD/val_filtered.json
+    
 
   input_size: [224,224] # [h,w]
   pixel_mean: [0.485, 0.456, 0.406]
@@ -63,12 +65,13 @@ evaluator:
   key_metric: mean_pixel_auc
   metrics:
     auc:
+      - name: pixel
       - name: mean
       - name: std
       - name: max
         kwargs:
           avgpool_size: [16, 16]
-      - name: pixel
+
   vis_compound:
     save_dir: vis_compound
     max_score: null
