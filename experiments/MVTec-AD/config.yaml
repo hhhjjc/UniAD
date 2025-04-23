@@ -57,7 +57,7 @@ saver:
   auto_resume: False
   always_save: False
   # load_path: checkpoints/ckpt_best.pth.tar
-  save_dir: checkpoints_wo_j/
+  save_dir: checkpoints/
   log_dir: log/
 
 evaluator:
@@ -114,10 +114,9 @@ net:
           # scale: 20.0
           # prob: 1.0
         neighbor_mask:
-          neighbor_size: [7,7]
+          # neighbor_size: [7,7]
           # mask: [True, True, True] # whether use mask in [enc, dec1, dec2]
-          mask: [False, False, False]
         save_recon:
-          save_dir: result_recon_wo_j
+          save_dir: result_recon
         initializer:
           method: xavier_uniform
