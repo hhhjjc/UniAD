@@ -19,8 +19,8 @@ dataset:
     rotate: False
 
   test:
-    meta_file: ../../data/MVTec-AD/test_filtered.json
-    # meta_file: ../../data/MVTec-AD/val_filtered.json
+    # meta_file: ../../data/MVTec-AD/test_filtered.json
+    meta_file: ../../data/MVTec-AD/val_filtered.json
     
 
   input_size: [224,224] # [h,w]
@@ -56,8 +56,8 @@ trainer:
 saver:
   auto_resume: False
   always_save: False
-  load_path: checkpoints/ckpt_best.pth.tar
-  save_dir: checkpoints/
+  # load_path: checkpoints/ckpt_best.pth.tar
+  save_dir: checkpoints_wo_j/
   log_dir: log/
 
 evaluator:
@@ -99,7 +99,7 @@ net:
         outstrides: [16]
     - name: reconstruction
       prev: neck
-      type: models.reconstructions.UniAD
+      type: models.reconstructions.wave_UniAD
       kwargs: 
         pos_embed_type: learned
         hidden_dim: 256
@@ -111,12 +111,13 @@ net:
         activation: relu
         normalize_before: False
         feature_jitter:
-          scale: 20.0
-          prob: 1.0
+          # scale: 20.0
+          # prob: 1.0
         neighbor_mask:
           neighbor_size: [7,7]
-          mask: [True, True, True] # whether use mask in [enc, dec1, dec2]
+          # mask: [True, True, True] # whether use mask in [enc, dec1, dec2]
+          mask: [False, False, False]
         save_recon:
-          save_dir: result_recon
+          save_dir: result_recon_wo_j
         initializer:
           method: xavier_uniform

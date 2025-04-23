@@ -11,3 +11,4 @@
 export PYTHONPATH=../../:$PYTHONPATH
 export CUDA_VISIBLE_DEVICES=$2
 torchrun --nproc_per_node=$1 ../../tools/train_val.py
+# --master_port=29500
