@@ -11,7 +11,7 @@ from einops import rearrange
 from models.initializer import initialize_from_cfg
 from torch import Tensor, nn
 from .torch_wavelets import DWT_2D, IDWT_2D
-from timm.models.layers import DropPath, to_2tuple, trunc_normal_
+
 
 class wave_UniAD(nn.Module):
     def __init__(
@@ -119,9 +119,13 @@ class WaveTransformer(nn.Module):
         super().__init__()
         self.feature_size = feature_size
         self.neighbor_mask = neighbor_mask
+
+        # 为不同层设置不同的sr_ratio
+        encoder_sr_ratios = [2, 2, 1, 1]  # 根据层的深度逐渐减小
+        decoder_sr_ratios = [2, 2, 1, 1]  # 与编码器保持一致
         
         encoder_layer = WaveTransformerEncoderLayer(
-            hidden_dim, nhead, dim_feedforward, dropout, activation, normalize_before, sr_ratio=2####
+            hidden_dim, nhead, dim_feedforward, dropout, activation, normalize_before, sr_ratio=2
         )
         encoder_norm = nn.LayerNorm(hidden_dim) if normalize_before else None
         self.encoder = TransformerEncoder(
@@ -136,7 +140,7 @@ class WaveTransformer(nn.Module):
             dropout,
             activation,
             normalize_before,
-            sr_ratio=1,####
+            sr_ratio=1,
         )
         decoder_norm = nn.LayerNorm(hidden_dim)
         self.decoder = TransformerDecoder(
@@ -313,13 +317,9 @@ class WaveTransformerEncoderLayer(nn.Module):
         pos: Optional[Tensor] = None,
     ):
         q = self.with_pos_embed(src, pos)
-        
-        n = src.shape[0]  # token数量
-        h = w = int(math.sqrt(n))  # 假设特征是正方形的
-        
         # Convert to B x N x C format for WaveAttention
         q = q.permute(1, 0, 2)
-        src2 = self.self_attn(q, h, w)
+        src2 = self.self_attn(q, int(math.sqrt(q.size(1))), int(math.sqrt(q.size(1))))
         # Convert back to N x B x C
         src2 = src2.permute(1, 0, 2)
         src = src + self.dropout1(src2)
@@ -338,13 +338,9 @@ class WaveTransformerEncoderLayer(nn.Module):
     ):
         src2 = self.norm1(src)
         q = self.with_pos_embed(src2, pos)
-        
-        n = src.shape[0]  # token数量
-        h = w = int(math.sqrt(n))  # 假设特征是正方形的
-        
         # Convert to B x N x C format for WaveAttention
         q = q.permute(1, 0, 2)
-        src2 = self.self_attn(q, h, w)
+        src2 = self.self_attn(q, int(math.sqrt(q.size(1))), int(math.sqrt(q.size(1))))
         # Convert back to N x B x C
         src2 = src2.permute(1, 0, 2)
         src = src + self.dropout1(src2)
@@ -417,12 +413,8 @@ class WaveTransformerDecoderLayer(nn.Module):
 
         # Self-attention with Wave
         q = self.with_pos_embed(tgt, pos)
-        
-        n = tgt.shape[0]  # token数量
-        h = w = int(math.sqrt(n))  # 假设特征是正方形的
-        
         q = q.permute(1, 0, 2)
-        tgt2 = self.self_attn(q, h, w)
+        tgt2 = self.self_attn(q, int(math.sqrt(q.size(1))), int(math.sqrt(q.size(1))))
         tgt2 = tgt2.permute(1, 0, 2)
         tgt = tgt + self.dropout1(tgt2)
         tgt = self.norm1(tgt)
@@ -430,7 +422,7 @@ class WaveTransformerDecoderLayer(nn.Module):
         # Cross-attention with Wave
         q = self.with_pos_embed(tgt, pos)
         q = q.permute(1, 0, 2)
-        tgt2 = self.multihead_attn(q, h, w)
+        tgt2 = self.multihead_attn(q, int(math.sqrt(q.size(1))), int(math.sqrt(q.size(1))))
         tgt2 = tgt2.permute(1, 0, 2)
         tgt = tgt + self.dropout2(tgt2)
         tgt = self.norm2(tgt)
@@ -456,19 +448,15 @@ class WaveTransformerDecoderLayer(nn.Module):
 
         tgt2 = self.norm1(tgt)
         q = self.with_pos_embed(tgt2, pos)
-                
-        n = tgt2.shape[0]  # token数量
-        h = w = int(math.sqrt(n))  # 假设特征是正方形的
-        
         q = q.permute(1, 0, 2)
-        tgt2 = self.self_attn(q, h, w)
+        tgt2 = self.self_attn(q, int(math.sqrt(q.size(1))), int(math.sqrt(q.size(1))))
         tgt2 = tgt2.permute(1, 0, 2)
         tgt = tgt + self.dropout1(tgt2)
 
         tgt2 = self.norm2(tgt)
         q = self.with_pos_embed(tgt2, pos)
         q = q.permute(1, 0, 2)
-        tgt2 = self.multihead_attn(q, h, w)
+        tgt2 = self.multihead_attn(q, int(math.sqrt(q.size(1))), int(math.sqrt(q.size(1))))
         tgt2 = tgt2.permute(1, 0, 2)
         tgt = tgt + self.dropout2(tgt2)
 
@@ -528,30 +516,14 @@ class WaveAttention(nn.Module):
             nn.BatchNorm2d(dim),
             nn.ReLU(inplace=True),
         )
-        self.kv_embed = nn.Conv2d(dim, dim, kernel_size=sr_ratio, stride=sr_ratio)
+        self.kv_embed = nn.Conv2d(dim, dim, kernel_size=sr_ratio, stride=sr_ratio) if sr_ratio > 1 else nn.Identity()
         self.q = nn.Linear(dim, dim)
         self.kv = nn.Sequential(
             nn.LayerNorm(dim),
             nn.Linear(dim, dim * 2)
         )
         self.proj = nn.Linear(dim+dim//4, dim)
-        self.apply(self._init_weights)
 
-    def _init_weights(self, m):
-        if isinstance(m, nn.Linear):
-            trunc_normal_(m.weight, std=.02)
-            if isinstance(m, nn.Linear) and m.bias is not None:
-                nn.init.constant_(m.bias, 0)
-        elif isinstance(m, nn.LayerNorm):
-            nn.init.constant_(m.bias, 0)
-            nn.init.constant_(m.weight, 1.0)
-        elif isinstance(m, nn.Conv2d):
-            fan_out = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
-            fan_out //= m.groups
-            m.weight.data.normal_(0, math.sqrt(2.0 / fan_out))
-            if m.bias is not None:
-                m.bias.data.zero_()
-    
     def forward(self, x, H, W):
         B, N, C = x.shape
         q = self.q(x).reshape(B, N, self.num_heads, C // self.num_heads).permute(0, 2, 1, 3)

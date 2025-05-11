@@ -281,20 +281,30 @@ def collect_filter_params(model):
         for name, m in module.named_children():
             full_name = f"{prefix}.{name}" if prefix else name
             
-            # 找到WaveAD中的filter模块
-            if name == 'filter' and isinstance(m, nn.Sequential) and hasattr(m, 'weight'):
+            # 修改：查找新的filter模块名称
+            #2. 新增的shared_filter
+            if name == 'shared_filter':
                 for param_name, param in m.named_parameters():
                     param.requires_grad_(True)
                     params.append(param)
                     names.append(f"{full_name}.{param_name}")
             
-            # 特别处理WaveMultiheadAttention中的filter
+            # 3. 新增的freq_attention
+            elif name == 'freq_attention':
+                for param_name, param in m.named_parameters():
+                    param.requires_grad_(True)
+                    params.append(param)
+                    names.append(f"{full_name}.{param_name}")
+            
+            # 特别处理WaveMultiheadAttention中的所有filter相关模块
             elif 'WaveMultiheadAttention' in m.__class__.__name__:
-                if hasattr(m, 'filter'):
-                    for param_name, param in m.filter.named_parameters():
-                        param.requires_grad_(True)
-                        params.append(param)
-                        names.append(f"{full_name}.filter.{param_name}")
+                # 查找所有filter相关的子模块
+                for sub_name, sub_m in m.named_children():
+                    if 'filter' in sub_name or 'freq' in sub_name:
+                        for param_name, param in sub_m.named_parameters():
+                            param.requires_grad_(True)
+                            params.append(param)
+                            names.append(f"{full_name}.{sub_name}.{param_name}")
                         
             elif len(list(m.children())) > 0:
                 find_filter_in_module(m, full_name)
@@ -302,6 +312,15 @@ def collect_filter_params(model):
     # 从reconstruction模块开始查找
     reconstruction = model.reconstruction
     find_filter_in_module(reconstruction)
+    
+    # 如果没有找到任何参数，尝试使用reduce模块的参数（作为备选）
+    if not params:
+        print("Warning: No filter parameters found, using reduce parameters as fallback")
+        for name, param in model.named_parameters():
+            if 'reduce' in name:
+                param.requires_grad_(True)
+                params.append(param)
+                names.append(name)
     
     return params, names
 
