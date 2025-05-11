@@ -25,8 +25,8 @@ from wave_tta import WaveAD_TTA, configure_model, collect_filter_params
 from utils.optimizer_helper import get_optimizer
 
 parser = argparse.ArgumentParser(description="WaveAD Test-Time Adaptation")
-parser.add_argument("--config", default="./experiments/MVTec-AD/config.yaml")
-parser.add_argument("--load_path", default="./experiments/MVTec-AD/checkpoints/ckpt_best.pth.tar", 
+parser.add_argument("--config", default=None)
+parser.add_argument("--load_path", default=None, 
                    help="Path to load trained model")
 parser.add_argument("--local_rank", default=None, help="local rank for dist")
 

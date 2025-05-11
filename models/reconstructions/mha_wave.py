@@ -7,6 +7,65 @@ from typing import Optional, Tuple
 from .torch_wavelets import DWT_2D, IDWT_2D
 
 
+# 新增类定义
+class FrequencyBandAttention(nn.Module):
+    """频域注意力模块，自适应关注不同频带"""
+    def __init__(self, embed_dim):
+        super().__init__()
+        self.band_weights = nn.Sequential(
+            nn.AdaptiveAvgPool2d(1),
+            nn.Conv2d(embed_dim, 4, 1),  # 4个频带
+            nn.Sigmoid()
+        )
+        
+    def forward(self, x_dwt):
+        B, C, H, W = x_dwt.shape
+        C_band = C // 4
+        
+        # 计算每个频带的重要性权重
+        weights = self.band_weights(x_dwt)  # [B, 4, 1, 1]
+        
+        # 对每个频带应用权重
+        weighted_bands = []
+        for i in range(4):
+            band = x_dwt[:, i*C_band:(i+1)*C_band]
+            weight = weights[:, i:i+1]
+            weighted_bands.append(band * weight)
+        
+        return torch.cat(weighted_bands, dim=1)
+
+class ConditionalFrequencyFilter(nn.Module):
+    """条件化频域滤波器"""
+    def __init__(self, embed_dim):
+        super().__init__()
+        self.global_pool = nn.AdaptiveAvgPool2d(1)
+        
+        # 条件生成网络
+        self.condition_net = nn.Sequential(
+            nn.Conv2d(embed_dim, embed_dim//4, 1),
+            nn.ReLU(),
+            nn.Conv2d(embed_dim//4, embed_dim*2, 1)  # 生成weight和bias
+        )
+        
+        # 基础滤波器
+        self.base_filter = nn.Conv2d(embed_dim, embed_dim, 3, padding=1)
+        self.norm = nn.BatchNorm2d(embed_dim)
+        self.activation = nn.ReLU(inplace=True)
+        
+    def forward(self, x):
+        # 生成条件参数
+        condition = self.global_pool(x)
+        params = self.condition_net(condition)
+        weight, bias = params.chunk(2, dim=1)
+        
+        # 条件化调制
+        out = self.base_filter(x)
+        out = out * (1 + weight) + bias
+        out = self.norm(out)
+        out = self.activation(out)
+        
+        return out
+
 class WaveMultiheadAttention(nn.Module):
     """
     基于小波变换的多头注意力机制
@@ -46,12 +105,17 @@ class WaveMultiheadAttention(nn.Module):
             nn.ReLU(inplace=True),
         )
         
-        # 小波域中的特征过滤器
-        self.filter = nn.Sequential(
-            nn.Conv2d(embed_dim, embed_dim, kernel_size=3, padding=1, stride=1, groups=1),
-            nn.BatchNorm2d(embed_dim),
-            nn.ReLU(inplace=True),
-        )
+        # # 小波域中的特征过滤器
+        # self.filter = nn.Sequential(
+        #     nn.Conv2d(embed_dim, embed_dim, kernel_size=3, padding=1, stride=1, groups=1),
+        #     nn.BatchNorm2d(embed_dim),
+        #     nn.ReLU(inplace=True),
+        # )
+        # key和value共享同一个条件化频域滤波器
+        self.shared_filter = ConditionalFrequencyFilter(embed_dim)
+        # 共享的频域注意力模块
+        self.freq_attention = FrequencyBandAttention(embed_dim)
+        
         
         # 空间下采样（当sr_ratio > 1时）
         self.kv_embed = nn.Conv2d(embed_dim, embed_dim, kernel_size=sr_ratio, stride=sr_ratio) if sr_ratio > 1 else nn.Identity()
@@ -116,14 +180,24 @@ class WaveMultiheadAttention(nn.Module):
         k_img = k.view(bsz, key_H, key_W, embed_dim).permute(0, 3, 1, 2)
         v_img = v.view(bsz, key_H, key_W, embed_dim).permute(0, 3, 1, 2)
         
-        # 应用小波变换
-        k_reduced = self.reduce(k_img)
-        k_dwt = self.dwt(k_reduced)
-        k_dwt = self.filter(k_dwt)
+        # # 应用小波变换
+        # k_reduced = self.reduce(k_img)
+        # k_dwt = self.dwt(k_reduced)
+        # k_dwt = self.filter(k_dwt)
         
-        v_reduced = self.reduce(v_img)
-        v_dwt = self.dwt(v_reduced)
-        v_dwt = self.filter(v_dwt)
+        # v_reduced = self.reduce(v_img)
+        # v_dwt = self.dwt(v_reduced)
+        # v_dwt = self.filter(v_dwt)
+        def process_kv(kv_img):
+            kv_reduced = self.reduce(kv_img)
+            kv_dwt = self.dwt(kv_reduced)
+            kv_dwt = self.freq_attention(kv_dwt)
+            kv_dwt = self.shared_filter(kv_dwt)
+            return kv_dwt
+        
+        # 应用相同的处理流程
+        k_dwt = process_kv(k_img)
+        v_dwt = process_kv(v_img)
         
         # 应用空间降采样并投影
         k_embed = self.kv_embed(k_dwt).reshape(bsz, embed_dim, -1).permute(0, 2, 1)
