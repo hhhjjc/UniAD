@@ -19,14 +19,14 @@ dataset:
     rotate: False
 
   test:
-    meta_file: ../../data/MVTec-AD/test_filtered_zipper.json
+    meta_file: ../../data/MVTec-AD/test_filtered.json
     # meta_file: ../../data/MVTec-AD/val_filtered.json
     
 
   input_size: [224,224] # [h,w]
   pixel_mean: [0.485, 0.456, 0.406]
   pixel_std: [0.229, 0.224, 0.225]
-  batch_size: 4
+  batch_size: 1
   workers: 8 # number of workers of dataloader for each process
 
 criterion:
@@ -56,7 +56,7 @@ trainer:
 saver:
   auto_resume: False
   always_save: False
-  load_path: checkpoints/ckpt_best.pth.tar
+  # load_path: checkpoints/ckpt_best.pth.tar
   save_dir: checkpoints/
   log_dir: log/
 
@@ -73,7 +73,7 @@ evaluator:
           avgpool_size: [16, 16]
 
   vis_compound:
-    save_dir: vis_compound
+    save_dir: vis_compound_wave
     max_score: null
     min_score: null
   # vis_single:
@@ -117,6 +117,6 @@ net:
           # neighbor_size: [7,7]
           # mask: [True, True, True] # whether use mask in [enc, dec1, dec2]
         save_recon:
-          save_dir: result_recon
+          save_dir: result_recon_wave
         initializer:
           method: xavier_uniform

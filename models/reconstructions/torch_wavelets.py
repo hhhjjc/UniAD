@@ -85,7 +85,7 @@ class IDWT_2D(nn.Module):
         w_hh = w_hh.unsqueeze(0).unsqueeze(1)
         filters = torch.cat([w_ll, w_lh, w_hl, w_hh], dim=0)
         self.register_buffer('filters', filters)
-        # self.filters = self.filters.to(dtype=torch.float32)
+        self.filters = self.filters.to(dtype=torch.float32)
 
     def forward(self, x):
         return IDWT_Function.apply(x, self.filters)
@@ -107,10 +107,10 @@ class DWT_2D(nn.Module):
         self.register_buffer('w_hl', w_hl.unsqueeze(0).unsqueeze(0))
         self.register_buffer('w_hh', w_hh.unsqueeze(0).unsqueeze(0))
 
-        # self.w_ll = self.w_ll.to(dtype=torch.float32)
-        # self.w_lh = self.w_lh.to(dtype=torch.float32)
-        # self.w_hl = self.w_hl.to(dtype=torch.float32)
-        # self.w_hh = self.w_hh.to(dtype=torch.float32)
+        self.w_ll = self.w_ll.to(dtype=torch.float32)
+        self.w_lh = self.w_lh.to(dtype=torch.float32)
+        self.w_hl = self.w_hl.to(dtype=torch.float32)
+        self.w_hh = self.w_hh.to(dtype=torch.float32)
 
     def forward(self, x):
         return DWT_Function.apply(x, self.w_ll, self.w_lh, self.w_hl, self.w_hh)
